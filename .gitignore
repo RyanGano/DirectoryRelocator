@@ -1,0 +1,12 @@
+# ignore output folder
+bin/
+build/
+obj/
+
+# ignore user-specific options/cache files
+_ReSharper.*
+Thumbs.db
+*.csproj.user
+*.DotSettings.user
+*.suo
+*.DotSettings
