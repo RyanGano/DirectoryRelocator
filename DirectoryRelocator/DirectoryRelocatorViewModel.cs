@@ -17,6 +17,7 @@ namespace DirectoryRelocator
 		{
 			m_createJunction = new Command(CreateJunction, CanCreateJunction);
 			m_clearJunction = new Command(ClearJunction, CanClearJunction);
+			m_refreshList = new Command(RefreshList, CanRefreshList);
 			m_editDirectoryLink = new Command(EditDirectoryLink, CanEditDirectoryLink);
 			m_saveDirectoryLink = new Command(SaveDirectoryLink, CanSaveDirectoryLink);
 			m_copyDirectoryLink = new Command(CopyDirectoryLink, CanCopyDirectoryLink);
@@ -86,6 +87,7 @@ namespace DirectoryRelocator
 
 		public Command CreateJunctionCommand { get { return m_createJunction; } }
 		public Command ClearJunctionCommand { get { return m_clearJunction; } }
+		public Command RefreshListCommand { get { return m_refreshList; } }
 		public Command EditDirectoryLinkCommand { get { return m_editDirectoryLink; } }
 		public Command SaveDirectoryLinkCommand { get { return m_saveDirectoryLink; } }
 		public Command CopyDirectoryLinkCommand { get { return m_copyDirectoryLink; } }
@@ -144,6 +146,19 @@ namespace DirectoryRelocator
 		private bool CanClearJunction()
 		{
 			return SelectedDirectory != null && SelectedDirectory.DirectoryStatus == DirectoryStatus.JunctionAvailable;
+		}
+
+		private void RefreshList()
+		{
+			if (!CanRefreshList())
+				return;
+
+			UpdateDirectoryList(this);
+		}
+
+		private bool CanRefreshList()
+		{
+			return true;
 		}
 
 		private void EditDirectoryLink()
@@ -303,6 +318,7 @@ namespace DirectoryRelocator
 
 		private readonly Command m_createJunction;
 		private readonly Command m_clearJunction;
+		private readonly Command m_refreshList;
 		private readonly Command m_editDirectoryLink;
 		private readonly Command m_saveDirectoryLink;
 		private readonly Command m_copyDirectoryLink;
