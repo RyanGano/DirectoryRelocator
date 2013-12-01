@@ -16,7 +16,7 @@
 				
 				<Rectangle Grid.Column="0" Fill="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToColor}}" Margin="4,0,4,0" Width="15" Height="15" ToolTip="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToText}}"/>
 				<TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding Path}"/>
-				<TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding DirectorySize, Converter={x:Static c:DirectoryDetails.ConvertDirectorySizeToSmallForm}}"/>
+				<TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding DirectorySize, Converter={x:Static c:DirectoryDetails.ConvertDirectorySizeToSmallForm}}" ToolTip="{Binding LastAccessed}"/>
 			</Grid>
 		</DataTemplate>
 		
