@@ -15,7 +15,7 @@
 				</Grid.ColumnDefinitions>
 				
 				<Rectangle Grid.Column="0" Fill="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToColor}}" Margin="4,0,4,0" Width="15" Height="15" ToolTip="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToText}}"/>
-				<TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding Path}"/>
+				<TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding ShortPath}" ToolTip="{Binding Path}"/>
 				<TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding DirectorySize, Converter={x:Static c:DirectoryDetails.ConvertDirectorySizeToSmallForm}}" ToolTip="{Binding LastAccessed}"/>
 			</Grid>
 		</DataTemplate>
@@ -60,6 +60,8 @@
 					<Button Margin="4,0" Padding="4,0" Command="{Binding CreateJunctionCommand}">Use backup location</Button>
 					<Button Margin="4,0" Padding="4,0" Command="{Binding ClearJunctionCommand}">Use main location</Button>
 					<Button Margin="4,0" Padding="4,0" Command="{Binding RefreshListCommand}">Refresh List</Button>
+					<Button Margin="4,0" Padding="4,0" Command="{Binding SkipSelectedDirectoryCommand}">Look at children</Button>
+					<Button Margin="4,0" Padding="4,0" Command="{Binding IgnoreSelectedDirectoryCommand}">Ignore</Button>
 				</StackPanel>
 
 				<Border Grid.Row="2" Margin="0,4" Height="1" Background="DarkGray"/>

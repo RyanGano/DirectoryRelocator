@@ -18,13 +18,18 @@ namespace DirectoryRelocator
 			m_createJunction = new Command(CreateJunction, CanCreateJunction);
 			m_clearJunction = new Command(ClearJunction, CanClearJunction);
 			m_refreshList = new Command(RefreshList, CanRefreshList);
+			m_skipSelectedDirectory = new Command(SkipSelectedDirectory, CanSkipSelectedDirectory);
+			m_ignoreSelectedDirectory = new Command(IgnoreSelectedDirectory, CanIgnoreSelectedDirectory);
 			m_editDirectoryLink = new Command(EditDirectoryLink, CanEditDirectoryLink);
 			m_saveDirectoryLink = new Command(SaveDirectoryLink, CanSaveDirectoryLink);
 			m_copyDirectoryLink = new Command(CopyDirectoryLink, CanCopyDirectoryLink);
 			m_cancelEditDirectoryLink = new Command(CancelEditDirectoryLink, CanCancelEditDirectoryLink);
 			m_deleteDirectoryLink = new Command(DeleteDirectoryLink, CanDeleteDirectoryLink);
 
-			LoadDirectoryLinks();
+			m_ignoredDirectories = new List<DirectoryDetails>();
+			m_skippedDirectories = new List<DirectoryDetails>();
+
+			LoadPreferences();
 		}
 
 		public static readonly DependencyProperty DirectoryListProperty = DependencyProperty.Register(
@@ -88,6 +93,8 @@ namespace DirectoryRelocator
 		public Command CreateJunctionCommand { get { return m_createJunction; } }
 		public Command ClearJunctionCommand { get { return m_clearJunction; } }
 		public Command RefreshListCommand { get { return m_refreshList; } }
+		public Command SkipSelectedDirectoryCommand { get { return m_skipSelectedDirectory; } }
+		public Command IgnoreSelectedDirectoryCommand { get { return m_ignoreSelectedDirectory; } }
 		public Command EditDirectoryLinkCommand { get { return m_editDirectoryLink; } }
 		public Command SaveDirectoryLinkCommand { get { return m_saveDirectoryLink; } }
 		public Command CopyDirectoryLinkCommand { get { return m_copyDirectoryLink; } }
@@ -99,8 +106,7 @@ namespace DirectoryRelocator
 			if (!(caller is DirectoryRelocatorViewModel))
 				throw new ArgumentException("DependencyObject should be a DirectoryRelocatorViewModel");
 
-			((DirectoryRelocatorViewModel)caller).CreateJunctionCommand.RaiseCanExecuteChanged();
-			((DirectoryRelocatorViewModel)caller).ClearJunctionCommand.RaiseCanExecuteChanged();
+			((DirectoryRelocatorViewModel)caller).UpdateDirectoryLinkEditButtons();
 		}
 		private static void OnSelectedDirectoryLinkChanged(DependencyObject caller, DependencyPropertyChangedEventArgs eventArgs)
 		{
@@ -161,6 +167,38 @@ namespace DirectoryRelocator
 			return true;
 		}
 
+		private void SkipSelectedDirectory()
+		{
+			if (!CanSkipSelectedDirectory())
+				return;
+
+			m_skippedDirectories.Add(SelectedDirectory);
+			SavePreferences();
+
+			UpdateDirectoryList(this);
+		}
+
+		private bool CanSkipSelectedDirectory()
+		{
+			return SelectedDirectory != null;
+		}
+
+		private void IgnoreSelectedDirectory()
+		{
+			if (!CanIgnoreSelectedDirectory())
+				return;
+
+			m_ignoredDirectories.Add(SelectedDirectory);
+			SavePreferences();
+
+			UpdateDirectoryList(this);
+		}
+
+		private bool CanIgnoreSelectedDirectory()
+		{
+			return SelectedDirectory != null;
+		}
+
 		private void EditDirectoryLink()
 		{
 			if (!CanEditDirectoryLink())
@@ -216,7 +254,7 @@ namespace DirectoryRelocator
 
 			UpdateDirectoryLinkEditButtons();
 
-			SaveDirectoryLinks();
+			SavePreferences();
 		}
 
 		private bool CanSaveDirectoryLink()
@@ -242,8 +280,13 @@ namespace DirectoryRelocator
 			EditDirectoryLinkCommand.RaiseCanExecuteChanged();
 			SaveDirectoryLinkCommand.RaiseCanExecuteChanged();
 			CopyDirectoryLinkCommand.RaiseCanExecuteChanged();
+			RefreshListCommand.RaiseCanExecuteChanged();
+			SkipSelectedDirectoryCommand.RaiseCanExecuteChanged();
+			IgnoreSelectedDirectoryCommand.RaiseCanExecuteChanged();
 			CancelEditDirectoryLinkCommand.RaiseCanExecuteChanged();
 			DeleteDirectoryLinkCommand.RaiseCanExecuteChanged();
+			CreateJunctionCommand.RaiseCanExecuteChanged();
+			ClearJunctionCommand.RaiseCanExecuteChanged();
 		}
 
 		private bool CanCancelEditDirectoryLink()
@@ -257,10 +300,10 @@ namespace DirectoryRelocator
 				return;
 
 			DirectoryLink selected = SelectedDirectoryLink;
-			SelectedDirectoryLink = StoredDirectoryLinks.FirstOrDefault();
+			SelectedDirectoryLink = StoredDirectoryLinks.FirstOrDefault(link => !Equals(link, selected));
 			StoredDirectoryLinks.Remove(selected);
 
-			SaveDirectoryLinks();
+			SavePreferences();
 		}
 
 		private bool CanDeleteDirectoryLink()
@@ -275,7 +318,8 @@ namespace DirectoryRelocator
 			if (model.SelectedDirectory != null)
 				selectedPath = model.SelectedDirectory.Path;
 
-			model.DirectoryList = DirectoryUtility.GetDirectoryDetails(model);
+			model.DirectoryList = DirectoryUtility.GetDirectoryDetails(model, model.m_ignoredDirectories, model.m_skippedDirectories);
+			model.DirectoryList.Sort(GenericUtility.InvertCompare);
 
 			if (selectedPath != null)
 				model.SelectedDirectory = model.DirectoryList.FirstOrDefault(directory => directory.Path == selectedPath);
@@ -286,44 +330,58 @@ namespace DirectoryRelocator
 			UpdateDirectoryLinkEditButtons();
 		}
 
-		private void SaveDirectoryLinks()
+		private void SavePreferences()
 		{
-			using (Stream stream = File.Create("DirectoryLinks.txt"))
+			using (Stream stream = File.Create("Preferences.txt"))
 			using (XmlWriter xmlWriter = new XmlTextWriter(stream, Encoding.UTF8))
 			{
-				xmlWriter.WriteStartElement("DirectoryLinks");
-
+				xmlWriter.WriteStartElement("Preferences");
+				
 				foreach (DirectoryLink link in StoredDirectoryLinks)
 					link.Write(xmlWriter);
+
+				foreach (DirectoryDetails info in m_ignoredDirectories)
+					info.Write(xmlWriter, DirectoryStatus.Ignored);
+
+				foreach (DirectoryDetails info in m_skippedDirectories)
+					info.Write(xmlWriter, DirectoryStatus.Skipped);
 
 				xmlWriter.WriteEndElement();
 			}
 		}
 
-		private void LoadDirectoryLinks()
+		private void LoadPreferences()
 		{
-			if (!File.Exists("DirectoryLinks.txt"))
+			if (!File.Exists("Preferences.txt"))
 				return;
 
-			using (Stream stream = File.OpenRead("DirectoryLinks.txt"))
+			using (Stream stream = File.OpenRead("Preferences.txt"))
 			using (XmlReader xmlReader = new XmlTextReader(stream))
 			{
 				while (xmlReader.Read())
+				{
 					if (xmlReader.Name == DirectoryLink.DirectoryLinkName)
-					{
 						StoredDirectoryLinks.Add(new DirectoryLink(xmlReader));
-					}
+
+					if (xmlReader.Name == DirectoryDetails.DirectoryDetailsName)
+						DirectoryDetails.Read(xmlReader, m_ignoredDirectories, m_skippedDirectories);
+				}
 			}
 		}
-
+		
 		private readonly Command m_createJunction;
 		private readonly Command m_clearJunction;
 		private readonly Command m_refreshList;
+		private readonly Command m_skipSelectedDirectory;
+		private readonly Command m_ignoreSelectedDirectory;
 		private readonly Command m_editDirectoryLink;
 		private readonly Command m_saveDirectoryLink;
 		private readonly Command m_copyDirectoryLink;
 		private readonly Command m_cancelEditDirectoryLink;
 		private readonly Command m_deleteDirectoryLink;
 		private readonly EditableDirectoryLink m_directoryLinkInEditMode = new EditableDirectoryLink();
+
+		private readonly List<DirectoryDetails> m_ignoredDirectories;
+		private readonly List<DirectoryDetails> m_skippedDirectories;
 	}
 }

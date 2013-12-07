@@ -123,15 +123,24 @@ namespace DirectoryRelocator.Utility
 			
 			return size;
 		}
-
-		public static List<DirectoryDetails> GetDirectoryDetails(DirectoryRelocatorViewModel viewModel)
+		
+		public static List<DirectoryDetails> GetDirectoryDetails(DirectoryRelocatorViewModel viewModel, List<DirectoryDetails> ignoredDirectories, List<DirectoryDetails> skippedDirectories)
 		{
 			if (!Directory.Exists(viewModel.SelectedDirectoryLink.OriginalPath))
 				return new List<DirectoryDetails>();
 
-			DirectoryInfo directoryInfo = new DirectoryInfo(viewModel.SelectedDirectoryLink.OriginalPath);
-			var directories = directoryInfo.EnumerateDirectories().Select(directory => new DirectoryDetails(directory.FullName));
-			return directories.ToList();
+			return GetDirectoryDetails(viewModel.SelectedDirectoryLink.OriginalPath, ignoredDirectories, skippedDirectories).ToList();
+		}
+
+		private static IEnumerable<DirectoryDetails> GetDirectoryDetails(string path, IReadOnlyCollection<DirectoryDetails> ignoredDirectories, IReadOnlyCollection<DirectoryDetails> skippedDirectories)
+		{
+			DirectoryInfo directoryInfo = new DirectoryInfo(path);
+
+			IEnumerable<DirectoryDetails> directories = directoryInfo.EnumerateDirectories().Select(directory => new DirectoryDetails(directory.FullName))
+				.Where(directory => !ignoredDirectories.Contains(directory))
+				.SelectMany(directory => skippedDirectories.Contains(directory) ? GetDirectoryDetails(directory.Path, ignoredDirectories, skippedDirectories) : new[] {directory});
+
+			return directories;
 		}
 
 		public static string GetBackupPath(string originalPath)

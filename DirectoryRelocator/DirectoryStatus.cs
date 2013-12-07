@@ -5,5 +5,7 @@
 		StandardDirectory,
 		BackupAvailable,
 		JunctionAvailable,
+		Ignored,
+		Skipped,
 	}
 }
