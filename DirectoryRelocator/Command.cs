@@ -26,7 +26,8 @@ namespace DirectoryRelocator
 
 		public void RaiseCanExecuteChanged()
 		{
-			CanExecuteChanged.Invoke(this, null);
+			if (CanExecuteChanged != null)
+				CanExecuteChanged.Invoke(this, null);
 		}
 
 		public event EventHandler CanExecuteChanged;

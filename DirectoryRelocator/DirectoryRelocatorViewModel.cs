@@ -15,11 +15,7 @@ namespace DirectoryRelocator
 	{
 		public DirectoryRelocatorViewModel()
 		{
-			m_createJunction = new Command(CreateJunction, CanCreateJunction);
-			m_clearJunction = new Command(ClearJunction, CanClearJunction);
 			m_refreshList = new Command(RefreshList, CanRefreshList);
-			m_skipSelectedDirectory = new Command(SkipSelectedDirectory, CanSkipSelectedDirectory);
-			m_ignoreSelectedDirectory = new Command(IgnoreSelectedDirectory, CanIgnoreSelectedDirectory);
 			m_editDirectoryLink = new Command(EditDirectoryLink, CanEditDirectoryLink);
 			m_saveDirectoryLink = new Command(SaveDirectoryLink, CanSaveDirectoryLink);
 			m_copyDirectoryLink = new Command(CopyDirectoryLink, CanCopyDirectoryLink);
@@ -28,6 +24,8 @@ namespace DirectoryRelocator
 
 			m_ignoredDirectories = new List<DirectoryDetails>();
 			m_skippedDirectories = new List<DirectoryDetails>();
+
+			DirectoryList = new List<DirectoryDetails>();
 
 			LoadPreferences();
 		}
@@ -44,21 +42,6 @@ namespace DirectoryRelocator
 			set
 			{
 				SetValue(DirectoryListProperty, value);
-			}
-		}
-
-		public static readonly DependencyProperty SelectedDirectoryProperty = DependencyProperty.Register(
-			"SelectedDirectory", typeof(DirectoryDetails), typeof(DirectoryRelocatorViewModel), new PropertyMetadata(null, OnSelectedDirectoryChanged));
-
-		public DirectoryDetails SelectedDirectory
-		{
-			get
-			{
-				return (DirectoryDetails)GetValue(SelectedDirectoryProperty);
-			}
-			set
-			{
-				SetValue(SelectedDirectoryProperty, value);
 			}
 		}
 
@@ -90,24 +73,13 @@ namespace DirectoryRelocator
 			}
 		}
 
-		public Command CreateJunctionCommand { get { return m_createJunction; } }
-		public Command ClearJunctionCommand { get { return m_clearJunction; } }
 		public Command RefreshListCommand { get { return m_refreshList; } }
-		public Command SkipSelectedDirectoryCommand { get { return m_skipSelectedDirectory; } }
-		public Command IgnoreSelectedDirectoryCommand { get { return m_ignoreSelectedDirectory; } }
 		public Command EditDirectoryLinkCommand { get { return m_editDirectoryLink; } }
 		public Command SaveDirectoryLinkCommand { get { return m_saveDirectoryLink; } }
 		public Command CopyDirectoryLinkCommand { get { return m_copyDirectoryLink; } }
 		public Command CancelEditDirectoryLinkCommand { get { return m_cancelEditDirectoryLink; } }
 		public Command DeleteDirectoryLinkCommand { get { return m_deleteDirectoryLink; } }
 
-		private static void OnSelectedDirectoryChanged(DependencyObject caller, DependencyPropertyChangedEventArgs eventArgs)
-		{
-			if (!(caller is DirectoryRelocatorViewModel))
-				throw new ArgumentException("DependencyObject should be a DirectoryRelocatorViewModel");
-
-			((DirectoryRelocatorViewModel)caller).UpdateDirectoryLinkEditButtons();
-		}
 		private static void OnSelectedDirectoryLinkChanged(DependencyObject caller, DependencyPropertyChangedEventArgs eventArgs)
 		{
 			if (!(caller is DirectoryRelocatorViewModel))
@@ -124,36 +96,6 @@ namespace DirectoryRelocator
 			UpdateDirectoryList(viewModel);
 		}
 
-		private void CreateJunction()
-		{
-			if (!CanCreateJunction())
-				return;
-
-			DirectoryUtility.CreateJunction(SelectedDirectory.Path);
-
-			UpdateDirectoryList(this);
-		}
-
-		private bool CanCreateJunction()
-		{
-			return SelectedDirectory != null && SelectedDirectory.DirectoryStatus != DirectoryStatus.JunctionAvailable;
-		}
-
-		private void ClearJunction()
-		{
-			if (!CanClearJunction())
-				return;
-
-			DirectoryUtility.RemoveJunction(SelectedDirectory.Path);
-
-			UpdateDirectoryList(this);
-		}
-
-		private bool CanClearJunction()
-		{
-			return SelectedDirectory != null && SelectedDirectory.DirectoryStatus == DirectoryStatus.JunctionAvailable;
-		}
-
 		private void RefreshList()
 		{
 			if (!CanRefreshList())
@@ -165,38 +107,6 @@ namespace DirectoryRelocator
 		private bool CanRefreshList()
 		{
 			return true;
-		}
-
-		private void SkipSelectedDirectory()
-		{
-			if (!CanSkipSelectedDirectory())
-				return;
-
-			m_skippedDirectories.Add(SelectedDirectory);
-			SavePreferences();
-
-			UpdateDirectoryList(this);
-		}
-
-		private bool CanSkipSelectedDirectory()
-		{
-			return SelectedDirectory != null;
-		}
-
-		private void IgnoreSelectedDirectory()
-		{
-			if (!CanIgnoreSelectedDirectory())
-				return;
-
-			m_ignoredDirectories.Add(SelectedDirectory);
-			SavePreferences();
-
-			UpdateDirectoryList(this);
-		}
-
-		private bool CanIgnoreSelectedDirectory()
-		{
-			return SelectedDirectory != null;
 		}
 
 		private void EditDirectoryLink()
@@ -281,12 +191,8 @@ namespace DirectoryRelocator
 			SaveDirectoryLinkCommand.RaiseCanExecuteChanged();
 			CopyDirectoryLinkCommand.RaiseCanExecuteChanged();
 			RefreshListCommand.RaiseCanExecuteChanged();
-			SkipSelectedDirectoryCommand.RaiseCanExecuteChanged();
-			IgnoreSelectedDirectoryCommand.RaiseCanExecuteChanged();
 			CancelEditDirectoryLinkCommand.RaiseCanExecuteChanged();
 			DeleteDirectoryLinkCommand.RaiseCanExecuteChanged();
-			CreateJunctionCommand.RaiseCanExecuteChanged();
-			ClearJunctionCommand.RaiseCanExecuteChanged();
 		}
 
 		private bool CanCancelEditDirectoryLink()
@@ -313,16 +219,29 @@ namespace DirectoryRelocator
 
 		private static void UpdateDirectoryList(DirectoryRelocatorViewModel model)
 		{
-			string selectedPath = null;
-
-			if (model.SelectedDirectory != null)
-				selectedPath = model.SelectedDirectory.Path;
-
+			foreach (var details in model.DirectoryList)
+				details.PropertyChanged -= model.OnDirectoryDetailsChanged;
+			
 			model.DirectoryList = DirectoryUtility.GetDirectoryDetails(model, model.m_ignoredDirectories, model.m_skippedDirectories);
 			model.DirectoryList.Sort(GenericUtility.InvertCompare);
 
-			if (selectedPath != null)
-				model.SelectedDirectory = model.DirectoryList.FirstOrDefault(directory => directory.Path == selectedPath);
+			foreach (var details in model.DirectoryList)
+				details.PropertyChanged += model.OnDirectoryDetailsChanged;
+		}
+
+		private void OnDirectoryDetailsChanged(object sender, PropertyChangedEventArgs e)
+		{
+			if (e.PropertyName == DirectoryDetails.DirectoryStatusProperty.Name)
+			{
+				DirectoryDetails details = (DirectoryDetails) sender;
+
+				if (details.DirectoryStatus == DirectoryStatus.Skipped)
+					m_skippedDirectories.Add(details);
+				else if (details.DirectoryStatus == DirectoryStatus.Ignored)
+					m_ignoredDirectories.Add(details);
+
+				UpdateDirectoryList(this);
+			}
 		}
 
 		private void OnDirectoryLinkInfoChanged(object sender, PropertyChangedEventArgs e)
@@ -369,11 +288,7 @@ namespace DirectoryRelocator
 			}
 		}
 		
-		private readonly Command m_createJunction;
-		private readonly Command m_clearJunction;
 		private readonly Command m_refreshList;
-		private readonly Command m_skipSelectedDirectory;
-		private readonly Command m_ignoreSelectedDirectory;
 		private readonly Command m_editDirectoryLink;
 		private readonly Command m_saveDirectoryLink;
 		private readonly Command m_copyDirectoryLink;

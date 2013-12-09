@@ -138,7 +138,7 @@ namespace DirectoryRelocator.Utility
 
 			IEnumerable<DirectoryDetails> directories = directoryInfo.EnumerateDirectories().Select(directory => new DirectoryDetails(directory.FullName))
 				.Where(directory => !ignoredDirectories.Contains(directory))
-				.SelectMany(directory => skippedDirectories.Contains(directory) ? GetDirectoryDetails(directory.Path, ignoredDirectories, skippedDirectories) : new[] {directory});
+				.SelectMany(directory => skippedDirectories.Contains(directory) ? GetDirectoryDetails(directory.Path, ignoredDirectories, skippedDirectories) : new[] { directory });
 
 			return directories;
 		}
