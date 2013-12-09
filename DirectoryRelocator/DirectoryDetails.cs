@@ -53,11 +53,7 @@ namespace DirectoryRelocator
 		public DateTime LastAccessed
 		{
 			get { return (DateTime)GetValue(LastAccessedProperty); }
-			private set
-			{
-				
-				SetValue(LastAccessedProperty, value);
-			}
+			private set { SetValue(LastAccessedProperty, value); }
 		}
 		
 		public bool Equals(DirectoryDetails other)
