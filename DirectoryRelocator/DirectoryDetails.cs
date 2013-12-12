@@ -105,17 +105,28 @@ namespace DirectoryRelocator
 
 		private void UpdateDetails(bool updateStatus)
 		{
-			FileSystemInfo[] fileSystemInfos = new DirectoryInfo(Path).GetFileSystemInfos();
+			DirectoryInfo directory = new DirectoryInfo(Path);
+			if (!directory.Exists)
+				return;
 
-			LastAccessed = fileSystemInfos.Select(info => info.LastAccessTime).OrderBy(accessTime => accessTime).FirstOrDefault();
+			try
+			{
+				FileSystemInfo[] fileSystemInfos = new DirectoryInfo(Path).GetFileSystemInfos();
 
-			DirectorySize = DirectoryUtility.GetDirectorySize(new DirectoryInfo(Path));
+				LastAccessed = fileSystemInfos.Select(info => info.LastAccessTime).OrderBy(accessTime => accessTime).FirstOrDefault();
 
-			if (updateStatus)
-				DirectoryStatus = DirectoryUtility.GetDirectoryStatus(Path);
+				DirectorySize = DirectoryUtility.GetDirectorySize(new DirectoryInfo(Path));
 
-			CreateJunctionCommand.RaiseCanExecuteChanged();
-			ClearJunctionCommand.RaiseCanExecuteChanged();
+				if (updateStatus)
+					DirectoryStatus = DirectoryUtility.GetDirectoryStatus(Path);
+
+				CreateJunctionCommand.RaiseCanExecuteChanged();
+				ClearJunctionCommand.RaiseCanExecuteChanged();
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// Skip
+			}
 		}
 
 		private void CreateJunction()
