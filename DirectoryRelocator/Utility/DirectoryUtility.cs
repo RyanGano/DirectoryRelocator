@@ -31,6 +31,13 @@ namespace DirectoryRelocator.Utility
 			{
 				// Otherwise we have to copy and delete
 				CopyDirectory(originalPath, backupLocation);
+
+				foreach (var file in Directory.EnumerateDirectories(originalPath).Concat(new[] {originalPath}).SelectMany(Directory.EnumerateFiles))
+				{
+					FileInfo fileInfo = new FileInfo(file);
+					fileInfo.IsReadOnly = false;
+				}
+						
 				Directory.Delete(originalPath, true);
 			}
 
@@ -78,6 +85,13 @@ namespace DirectoryRelocator.Utility
 				else
 				{
 					CopyDirectory(actualDirectory.FullName, junctionPath);
+
+					foreach (var file in Directory.EnumerateDirectories(actualDirectory.FullName).Concat(new[] { actualDirectory.FullName }).SelectMany(Directory.EnumerateFiles))
+					{
+						FileInfo fileInfo = new FileInfo(file);
+						fileInfo.IsReadOnly = false;
+					}
+
 					actualDirectory.Delete(true);
 				}
 			}
