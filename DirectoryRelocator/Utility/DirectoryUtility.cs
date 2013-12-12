@@ -127,13 +127,20 @@ namespace DirectoryRelocator.Utility
 			
 			long size = 0;
 
-			List<long> directorySizes = directory.GetDirectories().Select(GetDirectorySize).ToList();
-			if (directorySizes.Count != 0)
-				size = directorySizes.Aggregate((first, second) => first + second);
+			try
+			{
+				List<long> directorySizes = directory.GetDirectories().Select(GetDirectorySize).ToList();
+				if (directorySizes.Count != 0)
+					size = directorySizes.Aggregate((first, second) => first + second);
 
-			List<long> fileSizes = directory.EnumerateFiles().Select(file => file.Length).ToList();
-			if (fileSizes.Count != 0)
-				size += fileSizes.Aggregate((first, second) => first + second);
+				List<long> fileSizes = directory.EnumerateFiles().Select(file => file.Length).ToList();
+				if (fileSizes.Count != 0)
+					size += fileSizes.Aggregate((first, second) => first + second);
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// Skip this folder
+			}
 			
 			return size;
 		}
