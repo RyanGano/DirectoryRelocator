@@ -241,6 +241,8 @@ namespace DirectoryRelocator
 					m_ignoredDirectories.Add(details);
 
 				UpdateDirectoryList(this);
+
+				SavePreferences();
 			}
 		}
 
