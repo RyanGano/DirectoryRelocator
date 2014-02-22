@@ -31,12 +31,7 @@ namespace DirectoryRelocator.Utility
 			{
 				// Otherwise we have to copy and delete
 				CopyDirectory(originalPath, backupLocation);
-
-				foreach (var file in Directory.EnumerateDirectories(originalPath).Concat(new[] {originalPath}).SelectMany(Directory.EnumerateFiles))
-				{
-					FileInfo fileInfo = new FileInfo(file);
-					fileInfo.IsReadOnly = false;
-				}
+				MarkAllFilesAsReadWrite(new DirectoryInfo(originalPath));
 						
 				Directory.Delete(originalPath, true);
 			}
@@ -53,6 +48,15 @@ namespace DirectoryRelocator.Utility
 			Thread.Sleep(500);
 
 			return GetDirectoryStatus(originalPath);
+		}
+
+		private static void MarkAllFilesAsReadWrite(DirectoryInfo rootDirectory)
+		{
+			foreach (DirectoryInfo directory in rootDirectory.GetDirectories())
+				MarkAllFilesAsReadWrite(directory);
+
+			foreach (FileInfo file in rootDirectory.GetFiles())
+				file.IsReadOnly = false;
 		}
 
 		private static void CopyDirectory(string originalPath, string backupLocation)
