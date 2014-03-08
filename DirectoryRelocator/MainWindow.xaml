@@ -78,6 +78,7 @@
 				<ListBox Grid.Row="0" ItemsSource="{Binding DirectoryList}"/>
 				
 				<StackPanel Grid.Row="1" Margin="0,4,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+					<c:IsWorkingControl/>
 					<Button Margin="4,0" Padding="4,0" Command="{Binding RefreshListCommand}">Refresh List</Button>
 				</StackPanel>
 

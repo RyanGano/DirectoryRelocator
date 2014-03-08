@@ -5,7 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using System.Xml;
 using DirectoryRelocator.Utility;
 
@@ -73,6 +76,15 @@ namespace DirectoryRelocator
 			}
 		}
 
+		public static readonly DependencyProperty IsWorkingProperty = DependencyProperty.Register(
+			"IsWorking", typeof (bool), typeof (DirectoryRelocatorViewModel), new PropertyMetadata(default(bool)));
+
+		public bool IsWorking
+		{
+			get { return (bool) GetValue(IsWorkingProperty); }
+			set { SetValue(IsWorkingProperty, value); }
+		}
+		
 		public Command RefreshListCommand { get { return m_refreshList; } }
 		public Command EditDirectoryLinkCommand { get { return m_editDirectoryLink; } }
 		public Command SaveDirectoryLinkCommand { get { return m_saveDirectoryLink; } }
@@ -227,6 +239,40 @@ namespace DirectoryRelocator
 
 			foreach (var details in model.DirectoryList)
 				details.PropertyChanged += model.OnDirectoryDetailsChanged;
+
+			model.IsWorking = true;
+
+			List<DirectoryDetails> directories = model.DirectoryList;
+
+			Task.Run(() => SortDirectoriesWhenLoaded(directories))
+				.ContinueWith(task => model.Dispatcher.BeginInvoke(new Action(() =>
+				{
+					model.DirectoryList = null;
+					model.DirectoryList = task.Result;
+					model.IsWorking = false;
+				})));
+		}
+
+		private static List<DirectoryDetails> SortDirectoriesWhenLoaded(List<DirectoryDetails> directories)
+		{
+			if (directories.Count == 0)
+				return directories;
+
+			Dispatcher dispatcher = directories.First().Dispatcher;
+			bool keepWorking = true;
+
+			while (keepWorking)
+			{
+				keepWorking = dispatcher.Invoke(() =>
+				{
+					directories.Sort(GenericUtility.InvertCompare);
+					return directories.Any(item => item.IsWorking);
+				});
+
+				Thread.Sleep(500);
+			}
+
+			return directories;
 		}
 
 		private void OnDirectoryDetailsChanged(object sender, PropertyChangedEventArgs e)
