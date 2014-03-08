@@ -4,15 +4,14 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Windows;
 
 namespace DirectoryRelocator.Utility
 {
 	public class DirectoryUtility
 	{
-		public static DirectoryStatus CreateJunction(string originalPath)
+		public static DirectoryStatus CreateJunction(string originalPath, string rootOriginalPath, string rootBackupPath)
 		{
-			string backupLocation = GetBackupPath(originalPath);
+			string backupLocation = GetBackupPath(originalPath, rootOriginalPath, rootBackupPath);
 			
 			// TODO: This should allow for the case where a backup is available (in that case it
 			// should copy all changed files to the new location before creating the junction)
@@ -47,7 +46,7 @@ namespace DirectoryRelocator.Utility
 
 			Thread.Sleep(500);
 
-			return GetDirectoryStatus(originalPath);
+			return GetDirectoryStatus(originalPath, rootOriginalPath, rootBackupPath);
 		}
 
 		private static void MarkAllFilesAsReadWrite(DirectoryInfo rootDirectory)
@@ -72,10 +71,10 @@ namespace DirectoryRelocator.Utility
 				file.CopyTo(Path.Combine(backupLocation, file.Name));
 		}
 
-		public static DirectoryStatus RemoveJunction(string junctionPath)
+		public static DirectoryStatus RemoveJunction(string junctionPath, string rootOriginalPath, string rootBackupPath)
 		{
 			DirectoryInfo linkDirectory = new DirectoryInfo(junctionPath);
-			DirectoryInfo actualDirectory = new DirectoryInfo(GetBackupPath(junctionPath));
+			DirectoryInfo actualDirectory = new DirectoryInfo(GetBackupPath(junctionPath, rootOriginalPath, rootBackupPath));
 
 			if (linkDirectory.Attributes.HasFlag(FileAttributes.ReparsePoint) && FoldersActuallyMatch(linkDirectory, actualDirectory, true))
 			{
@@ -100,25 +99,25 @@ namespace DirectoryRelocator.Utility
 				}
 			}
 
-			return GetDirectoryStatus(junctionPath);
+			return GetDirectoryStatus(junctionPath, rootOriginalPath, rootBackupPath);
 		}
 
-		public DirectoryStatus RemoveBackup(string originalPath)
+		public DirectoryStatus RemoveBackup(string originalPath, string rootOriginalPath, string rootBackupPath)
 		{
 			// Verify that the original path is not a junction
 			if (!new DirectoryInfo(originalPath).Attributes.HasFlag(FileAttributes.ReparsePoint))
-				Directory.Delete(GetBackupPath(originalPath), true);
+				Directory.Delete(GetBackupPath(originalPath, rootOriginalPath, rootBackupPath), true);
 
-			return GetDirectoryStatus(originalPath);
+			return GetDirectoryStatus(originalPath, rootOriginalPath, rootBackupPath);
 		}
 
-		public static DirectoryStatus GetDirectoryStatus(string path)
+		public static DirectoryStatus GetDirectoryStatus(string path, string rootOriginalPath, string rootBackupPath)
 		{
 			// Is this a directory junction?
 			if (new DirectoryInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint))
 				return DirectoryStatus.JunctionAvailable;
 
-			if (Directory.Exists(GetBackupPath(path)))
+			if (Directory.Exists(GetBackupPath(path, rootOriginalPath, rootBackupPath)))
 				return DirectoryStatus.BackupAvailable;
 
 			return DirectoryStatus.StandardDirectory;
@@ -128,25 +127,13 @@ namespace DirectoryRelocator.Utility
 		{
 			if (!directory.Exists)
 				throw new DirectoryNotFoundException();
-			
-			long size = 0;
 
-			try
-			{
-				List<long> directorySizes = directory.GetDirectories().Select(GetDirectorySize).ToList();
-				if (directorySizes.Count != 0)
-					size = directorySizes.Aggregate((first, second) => first + second);
+			FileInfo[] files = directory.GetFiles("*", SearchOption.AllDirectories);
 
-				List<long> fileSizes = directory.EnumerateFiles().Select(file => file.Length).ToList();
-				if (fileSizes.Count != 0)
-					size += fileSizes.Aggregate((first, second) => first + second);
-			}
-			catch (UnauthorizedAccessException)
-			{
-				// Skip this folder
-			}
+			if (files.Length != 0)
+				return files.Select(file => file.Length).Aggregate((first, second) => first + second);
 			
-			return size;
+			return 0;
 		}
 		
 		public static List<DirectoryDetails> GetDirectoryDetails(DirectoryRelocatorViewModel viewModel, List<DirectoryDetails> ignoredDirectories, List<DirectoryDetails> skippedDirectories)
@@ -168,16 +155,8 @@ namespace DirectoryRelocator.Utility
 			return directories;
 		}
 
-		public static string GetBackupPath(string originalPath)
+		public static string GetBackupPath(string originalPath, string rootOriginalPath, string rootBackupPath)
 		{
-			MainWindow mainWindow = (Application.Current.MainWindow as MainWindow);
-
-			if (mainWindow == null)
-				throw new Exception("No main window?");
-
-			string rootOriginalPath = mainWindow.DirectoryRelocator.SelectedDirectoryLink.OriginalPath;
-			string rootBackupPath = mainWindow.DirectoryRelocator.SelectedDirectoryLink.BackupPath;
-
 			string newPathPart = originalPath.Substring(rootOriginalPath.Length + 1);
 
 			return Path.Combine(rootBackupPath, newPathPart);

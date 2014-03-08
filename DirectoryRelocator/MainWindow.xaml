@@ -5,7 +5,8 @@
 				xmlns:utility="clr-namespace:DirectoryRelocator.Utility"
 				Title="DirectoryRelocator" Height="350" Width="525">
 	
-	<Window.Resources>		
+	<Window.Resources>
+		
 		<DataTemplate DataType="{x:Type c:DirectoryDetails}">
 			<Grid>
 				<Grid.ColumnDefinitions>
@@ -13,8 +14,19 @@
 					<ColumnDefinition Width="400"/>
 					<ColumnDefinition Width="Auto"/>
 				</Grid.ColumnDefinitions>
+
+				<Rectangle
+					Grid.Column="0"
+					Fill="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToColor}}"
+					Margin="4,0,4,0"
+					Width="15" 
+					Height="15" 
+					ToolTip="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToText}}"/>
 				
-				<Rectangle Grid.Column="0" Fill="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToColor}}" Margin="4,0,4,0" Width="15" Height="15" ToolTip="{Binding DirectoryStatus, Converter={x:Static c:DirectoryDetails.ConvertDirectoryStatusToText}}"/>
+				<c:IsWorkingControl
+					Grid.Column="0"
+					IsWorking="{Binding IsWorking}"/>
+				
 				<TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{Binding ShortPath}" ToolTip="{Binding Path}"/>
 				<TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding DirectorySize, Converter={x:Static c:DirectoryDetails.ConvertDirectorySizeToSmallForm}}" ToolTip="{Binding LastAccessed}"/>
 				

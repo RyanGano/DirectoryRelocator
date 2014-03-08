@@ -53,7 +53,14 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="IsWorkingControl.xaml.cs">
+      <DependentUpon>IsWorkingControl.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Utility\GenericUtility.cs" />
+    <Page Include="IsWorkingControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

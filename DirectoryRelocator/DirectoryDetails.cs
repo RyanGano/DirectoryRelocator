@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Xml;
@@ -55,6 +56,15 @@ namespace DirectoryRelocator
 			get { return (DateTime)GetValue(LastAccessedProperty); }
 			private set { SetValue(LastAccessedProperty, value); }
 		}
+
+		public static readonly DependencyProperty IsWorkingProperty =
+			DependencyProperty.Register("IsWorking", typeof(bool), typeof(DirectoryDetails), new PropertyMetadata((d, e) => ((DirectoryDetails)d).UpdateCommandStatus()));
+		
+		public bool IsWorking
+		{
+			get { return (bool)GetValue(IsWorkingProperty); }
+			private set { SetValue(IsWorkingProperty, value); }
+		}
 		
 		public bool Equals(DirectoryDetails other)
 		{
@@ -99,34 +109,73 @@ namespace DirectoryRelocator
 			m_clearJunction = new Command(ClearJunction, CanClearJunction);
 			m_skipDirectory = new Command(SkipDirectory, CanSkipDirectory);
 			m_ignoreDirectory = new Command(IgnoreDirectory, CanIgnoreDirectory);
-			
+
 			UpdateDetails(updateStatus);
 		}
 
 		private void UpdateDetails(bool updateStatus)
 		{
-			DirectoryInfo directory = new DirectoryInfo(Path);
-			if (!directory.Exists)
-				return;
+			if (updateStatus)
+			{
+				IsWorking = true;
+				
+				DirectoryInfo directory = new DirectoryInfo(Path);
+				if (!directory.Exists)
+					return;
 
+				string path = Path;
+				RootPathInfo rootPathInfo = Dispatcher.Invoke(() => GetRootPaths());
+
+				IsWorking = true;
+				Task<DirectoryDetailsBundle> updateStatusTask = new Task<DirectoryDetailsBundle>(() => DoUpdateStatusWork(updateStatus, path, rootPathInfo.RootBackupPath, rootPathInfo.RootOriginalPath));
+				updateStatusTask.ContinueWith(StopWorking);
+				updateStatusTask.Start();
+			}
+		}
+
+		private void StopWorking(Task<DirectoryDetailsBundle> task)
+		{
+			Dispatcher.BeginInvoke(new Action(() =>
+			{
+				DirectoryDetailsBundle bundle = task.Result;
+
+				LastAccessed = bundle.LastAccessed;
+				DirectorySize = bundle.DirectorySize;
+				DirectoryStatus = bundle.DirectoryStatus;
+				IsWorking = false;
+			}));
+		}
+
+		private static DirectoryDetailsBundle DoUpdateStatusWork(bool updateStatus, string path, string rootBackupPath, string rootOriginalPath)
+		{
 			try
 			{
-				FileSystemInfo[] fileSystemInfos = new DirectoryInfo(Path).GetFileSystemInfos();
-
-				LastAccessed = fileSystemInfos.Select(info => info.LastAccessTime).OrderBy(accessTime => accessTime).FirstOrDefault();
-
-				DirectorySize = DirectoryUtility.GetDirectorySize(new DirectoryInfo(Path));
-
 				if (updateStatus)
-					DirectoryStatus = DirectoryUtility.GetDirectoryStatus(Path);
+				{
+					FileSystemInfo[] fileSystemInfos = new DirectoryInfo(path).GetFileSystemInfos();
 
-				CreateJunctionCommand.RaiseCanExecuteChanged();
-				ClearJunctionCommand.RaiseCanExecuteChanged();
+					DateTime lastAccessed = fileSystemInfos.Select(info => info.LastAccessTime).OrderBy(accessTime => accessTime).FirstOrDefault();
+					long directorySize = DirectoryUtility.GetDirectorySize(new DirectoryInfo(path));
+					
+					DirectoryStatus directoryStatus = DirectoryUtility.GetDirectoryStatus(path, rootOriginalPath, rootBackupPath);
+
+					return new DirectoryDetailsBundle(lastAccessed, directorySize, directoryStatus);
+				}
 			}
 			catch (UnauthorizedAccessException)
 			{
 				// Skip
 			}
+
+			return new DirectoryDetailsBundle();
+		}
+
+		private void UpdateCommandStatus()
+		{
+			CreateJunctionCommand.RaiseCanExecuteChanged();
+			ClearJunctionCommand.RaiseCanExecuteChanged();
+			SkipDirectoryCommand.RaiseCanExecuteChanged();
+			IgnoreDirectoryCommand.RaiseCanExecuteChanged();
 		}
 
 		private void CreateJunction()
@@ -134,13 +183,40 @@ namespace DirectoryRelocator
 			if (!CanCreateJunction())
 				return;
 
-			DirectoryUtility.CreateJunction(Path);
-			UpdateDetails(true);
+			string path = Path;
+			RootPathInfo rootPathInfo = GetRootPaths();
+
+			IsWorking = true;
+			Task createJunction = new Task(() => DirectoryUtility.CreateJunction(path, rootPathInfo.RootOriginalPath, rootPathInfo.RootBackupPath));
+			createJunction.ContinueWith(task => MarkWorkDone());
+			createJunction.Start();
+		}
+
+		private static RootPathInfo GetRootPaths()
+		{
+			MainWindow mainWindow = (Application.Current.MainWindow as MainWindow);
+
+			if (mainWindow == null)
+				throw new Exception("No main window?");
+
+			string rootOriginalPath = mainWindow.DirectoryRelocator.SelectedDirectoryLink.OriginalPath;
+			string rootBackupPath = mainWindow.DirectoryRelocator.SelectedDirectoryLink.BackupPath;
+
+			return new RootPathInfo(rootOriginalPath, rootBackupPath);
+		}
+
+		private void MarkWorkDone()
+		{
+			Dispatcher.BeginInvoke(new Action(() =>
+			{
+				IsWorking = false;
+				UpdateDetails(true);
+			}));
 		}
 
 		private bool CanCreateJunction()
 		{
-			return DirectoryStatus != DirectoryStatus.JunctionAvailable;
+			return !IsWorking && DirectoryStatus != DirectoryStatus.JunctionAvailable;
 		}
 
 		private void ClearJunction()
@@ -148,13 +224,18 @@ namespace DirectoryRelocator
 			if (!CanClearJunction())
 				return;
 
-			DirectoryUtility.RemoveJunction(Path);
-			UpdateDetails(true);
+			string path = Path;
+			RootPathInfo rootPathInfo = GetRootPaths();
+
+			IsWorking = true;
+			Task removeJunction = new Task(() => DirectoryUtility.RemoveJunction(path, rootPathInfo.RootOriginalPath, rootPathInfo.RootBackupPath));
+			removeJunction.ContinueWith(task => MarkWorkDone());
+			removeJunction.Start();
 		}
 
 		private bool CanClearJunction()
 		{
-			return DirectoryStatus == DirectoryStatus.JunctionAvailable;
+			return !IsWorking && DirectoryStatus == DirectoryStatus.JunctionAvailable;
 		}
 
 		private void SkipDirectory()
@@ -168,7 +249,7 @@ namespace DirectoryRelocator
 
 		private bool CanSkipDirectory()
 		{
-			return true;
+			return !IsWorking;
 		}
 
 		private void IgnoreDirectory()
@@ -182,27 +263,27 @@ namespace DirectoryRelocator
 
 		private bool CanIgnoreDirectory()
 		{
-			return true;
+			return !IsWorking;
 		}
 
 		public Command CreateJunctionCommand { get { return m_createJunction; } }
 		public Command ClearJunctionCommand { get { return m_clearJunction; } }
 		public Command SkipDirectoryCommand { get { return m_skipDirectory; } }
 		public Command IgnoreDirectoryCommand { get { return m_ignoreDirectory; } }
-		
+
 		public static readonly IValueConverter ConvertDirectoryStatusToText = new DirectoryStatusToTextConverter();
 		public static readonly IValueConverter ConvertDirectoryStatusToColor = new DirectoryStatusToColorConverter();
 		public static readonly IValueConverter ConvertDirectorySizeToSmallForm = new DirectorySizeToSmallFormConverter();
 
 		private const string c_path = "Path";
 		private const string c_status = "Status";
-
 		public const string DirectoryDetailsName = "DirectoryDetails";
-		
+
 		private readonly Command m_createJunction;
 		private readonly Command m_clearJunction;
 		private readonly Command m_skipDirectory;
 		private readonly Command m_ignoreDirectory;
+
 		public event PropertyChangedEventHandler PropertyChanged;
 
 		[NotifyPropertyChangedInvocator]
@@ -210,6 +291,39 @@ namespace DirectoryRelocator
 		{
 			PropertyChangedEventHandler handler = PropertyChanged;
 			if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
+		}
+
+		private sealed class DirectoryDetailsBundle
+		{
+			public DateTime LastAccessed { get; private set; }
+			public long DirectorySize { get; private set; }
+			public DirectoryStatus DirectoryStatus { get; private set; }
+
+			public DirectoryDetailsBundle()
+			{
+				LastAccessed = DateTime.Now;
+				DirectorySize = 0;
+				DirectoryStatus = DirectoryStatus.StandardDirectory;
+			}
+
+			public DirectoryDetailsBundle(DateTime lastAccessed, long directorySize, DirectoryStatus directoryStatus)
+			{
+				LastAccessed = lastAccessed;
+				DirectorySize = directorySize;
+				DirectoryStatus = directoryStatus;
+			}
+		}
+	}
+
+	internal class RootPathInfo
+	{
+		public string RootOriginalPath { get; private set; }
+		public string RootBackupPath { get; private set; }
+
+		public RootPathInfo(string rootOriginalPath, string rootBackupPath)
+		{
+			RootOriginalPath = rootOriginalPath;
+			RootBackupPath = rootBackupPath;
 		}
 	}
 
