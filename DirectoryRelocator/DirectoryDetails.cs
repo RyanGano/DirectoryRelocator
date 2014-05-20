@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -109,6 +110,7 @@ namespace DirectoryRelocator
 			m_clearJunction = new Command(ClearJunction, CanClearJunction);
 			m_skipDirectory = new Command(SkipDirectory, CanSkipDirectory);
 			m_ignoreDirectory = new Command(IgnoreDirectory, CanIgnoreDirectory);
+			m_openInExplorer = new Command(OpenInExplorer, () => true);
 
 			UpdateDetails(updateStatus);
 		}
@@ -266,10 +268,22 @@ namespace DirectoryRelocator
 			return !IsWorking;
 		}
 
+		private void OpenInExplorer()
+		{
+			ProcessStartInfo process = new ProcessStartInfo("cmd.exe", string.Format("/c explorer.exe \"{0}\"", Path))
+			{
+				CreateNoWindow = true,
+				UseShellExecute = false,
+				WindowStyle = ProcessWindowStyle.Hidden
+			};
+			Process.Start(process);
+		}
+
 		public Command CreateJunctionCommand { get { return m_createJunction; } }
 		public Command ClearJunctionCommand { get { return m_clearJunction; } }
 		public Command SkipDirectoryCommand { get { return m_skipDirectory; } }
 		public Command IgnoreDirectoryCommand { get { return m_ignoreDirectory; } }
+		public Command OpenInExplorerCommand { get { return m_openInExplorer; } }
 
 		public static readonly IValueConverter ConvertDirectoryStatusToText = new DirectoryStatusToTextConverter();
 		public static readonly IValueConverter ConvertDirectoryStatusToColor = new DirectoryStatusToColorConverter();
@@ -283,6 +297,7 @@ namespace DirectoryRelocator
 		private readonly Command m_clearJunction;
 		private readonly Command m_skipDirectory;
 		private readonly Command m_ignoreDirectory;
+		private readonly Command m_openInExplorer;
 
 		public event PropertyChangedEventHandler PropertyChanged;
 

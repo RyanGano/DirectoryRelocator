@@ -36,6 +36,8 @@
 						<MenuItem Header="Use main location" Command="{Binding ClearJunctionCommand}"/>
 						<MenuItem Header="Show children" Command="{Binding SkipDirectoryCommand}"/>
 						<MenuItem Header="Remove from list" Command="{Binding IgnoreDirectoryCommand}"/>
+						<Separator/>
+						<MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}"/>
 					</ContextMenu>
 				</Grid.ContextMenu>
 			</Grid>
